@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 교사 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-cell { cursor: pointer; text-align: center; font-weight: bold; vertical-align: middle; }
+        .status-grading { background: #ffecb5; animation: blink 1s infinite; }
+        .status-pass { background: #d4edda; color: #155724; }
+        .status-fail { background: #f8d7da; color: #721c24; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #dee2e6; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand">AI Class System</span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-success" onclick="openSetupModal()">+ 과목 개설</button>
+            <button class="btn btn-outline-light btn-sm" onclick="location.reload()">새로고침</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <!-- 1. 수업 선택 영역 -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3">수업 입장</h5>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="text-muted small">1. 과목 선택</label>
+                    <select id="courseSelect" class="form-select" onchange="filterClasses()">
+                        <option value="" disabled selected>개설된 과목을 선택하세요</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="text-muted small">2. 반 선택</label>
+                    <select id="activeClassSelect" class="form-select">
+                        <option value="" disabled selected>과목을 먼저 선택하세요</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" onclick="startClass()">입장 (수업 시작)</button>
+                </div>
+            </div>
+            <p class="text-danger small mt-2 mb-0">* '입장' 버튼을 눌러야 학생들 화면에 해당 수업이 나타납니다.</p>
+        </div>
+    </div>
+
+    <!-- 2. 수업 제어 및 현황판 -->
+    <div id="dashboardArea" style="display:none;">
+        <div class="card mb-3 border-primary">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 id="currentClassTitle" class="mb-0">-</h4>
+                    <small class="text-muted">실시간 모니터링 중 (이 반만 활성화됨)</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="fw-bold">문제지 배부:</label>
+                    <select id="chapterControl" class="form-select w-auto"></select>
+                    <button class="btn btn-danger" onclick="changeChapter()">적용</button>
+                </div>
+            </div>
+        </div>
+
+        <table class="table table-bordered table-hover bg-white shadow-sm text-center">
+            <thead class="table-light" id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 모달들 -->
+<div class="modal fade" id="setupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">새 과목 개설</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label>과목 선택</label><select id="setupCourseSelect" class="form-select"></select></div>
+                <div class="mb-3"><label>반 목록</label><input type="text" id="setupClasses" class="form-control" placeholder="1반, 2반"></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary" onclick="runSetup()">개설</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- [핵심 2] 상세 보기 모달 UI 개선 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl"> <!-- 넓은 모달 사용 -->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">제출 상세 정보</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- 왼쪽: 학생 코드 -->
+                    <div class="col-md-6 border-end">
+                        <h6 class="fw-bold text-dark">📜 학생이 제출한 답안</h6>
+                        <pre id="mCode"></pre>
+                    </div>
+                    <!-- 오른쪽: AI 피드백 -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary">🤖 AI 채점 결과 (<span id="mScore"></span>점)</h6>
+                        <div class="alert alert-light border">
+                            <p id="mFeedback" style="white-space: pre-wrap;"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentClassId = null;
+    let allData = null; 
+    let submissionData = {}; // [중요] 제출 데이터를 저장할 전역 객체
+    const setupModal = new bootstrap.Modal(document.getElementById('setupModal'));
+    const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+
+    async function init() {
+        const res = await fetch('/api/system/info');
+        allData = await res.json();
+        if (!allData.initialized) openSetupModal();
+        else renderCourseSelect();
+    }
+
+    function openSetupModal() {
+        const sel = document.getElementById('setupCourseSelect');
+        sel.innerHTML = "";
+        if (allData && allData.available_courses_in_yaml) {
+            allData.available_courses_in_yaml.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.innerText = c;
+                sel.appendChild(opt);
+            });
+        }
+        setupModal.show();
+    }
+
+    async function runSetup() {
+        const name = document.getElementById('setupCourseSelect').value;
+        const classesStr = document.getElementById('setupClasses').value;
+        if(!name || !classesStr) return alert("입력 확인");
+        await fetch('/api/system/setup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({course_name: name, class_names: classesStr.split(',')})
+        });
+        alert("개설 완료"); setupModal.hide(); init();
+    }
+
+    function renderCourseSelect() {
+        const cSel = document.getElementById('courseSelect');
+        cSel.innerHTML = '<option value="" disabled selected>과목 선택</option>';
+        allData.courses.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id; opt.innerText = c.name;
+            cSel.appendChild(opt);
+        });
+    }
+
+    function filterClasses() {
+        const cid = parseInt(document.getElementById('courseSelect').value);
+        const classSel = document.getElementById('activeClassSelect');
+        const filtered = allData.classes.filter(cls => cls.course_id === cid);
+        classSel.innerHTML = "";
+        filtered.forEach(cls => {
+            const opt = document.createElement('option');
+            opt.value = cls.id; opt.innerText = cls.name;
+            opt.setAttribute('data-chapter', cls.active_chapter);
+            classSel.appendChild(opt);
+        });
+    }
+
+    async function startClass() {
+        const sel = document.getElementById('activeClassSelect');
+        if(!sel.value) return alert("반 선택");
+
+        currentClassId = sel.value;
+        const className = sel.options[sel.selectedIndex].text;
+        const courseName = document.getElementById('courseSelect').options[document.getElementById('courseSelect').selectedIndex].text;
+
+        await fetch('/api/admin/activate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({classroom_id: currentClassId})
+        });
+
+        document.getElementById('dashboardArea').style.display = 'block';
+        document.getElementById('currentClassTitle').innerText = `[${courseName}] ${className}`;
+        
+        const chSel = document.getElementById('chapterControl');
+        chSel.innerHTML = "";
+        (allData.chapters_by_course[courseName] || []).forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch; opt.innerText = ch;
+            chSel.appendChild(opt);
+        });
+        document.getElementById('chapterControl').value = sel.options[sel.selectedIndex].getAttribute('data-chapter');
+
+        fetchStatus();
+    }
+
+    async function changeChapter() {
+        await fetch('/api/admin/progress', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({classroom_id: currentClassId, active_chapter: document.getElementById('chapterControl').value})
+        });
+        alert("배부 완료"); fetchStatus();
+    }
+
+    async function fetchStatus() {
+        if(!currentClassId) return;
+        const res = await fetch(`/api/status?classroom_id=${currentClassId}`);
+        const data = await res.json();
+        renderTable(data);
+    }
+
+    function renderTable(data) {
+        let h = `<tr><th>이름</th>`;
+        data.problems.forEach(p => h += `<th>${p.title}</th>`);
+        document.getElementById('tableHead').innerHTML = h + "</tr>";
+
+        const tb = document.getElementById('tableBody');
+        tb.innerHTML = "";
+        
+        // 데이터 초기화
+        submissionData = {};
+
+        data.students.forEach(st => {
+            let row = `<tr><td>${st.info}</td>`;
+            data.problems.forEach(p => {
+                const item = st.problems[p.id];
+                let cls = 'bg-light';
+                let txt = '-';
+                
+                // 고유 키 생성 (학생ID_문제ID)
+                const uniqueKey = `${st.info}_${p.id}`; 
+                
+                if(item.status === 'grading') { 
+                    cls = 'status-grading'; txt = '...'; 
+                } else if(item.status === 'completed') {
+                    txt = item.score;
+                    cls = item.score >= 80 ? 'status-pass' : 'status-fail';
+                    
+                    // [중요] 데이터를 전역 객체에 저장 (HTML 속성에 넣지 않음)
+                    submissionData[uniqueKey] = item;
+                }
+
+                // onclick에 ID만 전달
+                row += `<td class="status-cell ${cls}" onclick="openDetailModal('${uniqueKey}')">${txt}</td>`;
+            });
+            tb.innerHTML += row + "</tr>";
+        });
+    }
+
+    function openDetailModal(key) {
+        const item = submissionData[key];
+        if(!item) return; // 데이터 없으면 무시
+
+        document.getElementById('mCode').innerText = item.code || "내용 없음";
+        document.getElementById('mScore').innerText = item.score;
+        document.getElementById('mFeedback').innerText = item.feedback || "피드백 없음";
+        
+        detailModal.show();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+    setInterval(fetchStatus, 3000);
+</script>
+</body>
+</html>
