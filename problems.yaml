@@ -4,35 +4,35 @@
     title: "print 문법"
     description: "안녕하세요를 출력하는 print문을 작성해보세요"
     type: "code"
-    ai_prompt: "오탈자 위주로 학생들에게 친절히 알려줘"
+    ai_prompt: "# 채점기준 1. 출력 코드가 정상적인가?"
 
   - id: 2
     chapter: "1차시"
     title: "input"
     description: "이름을 입력받고 다시 출력하는 프로그램을 만드시오"
     type: "code"
-    ai_prompt: "오탈자 위주로 학생들에게 친절히 알려줘"
+    ai_prompt: "# 채점기준 1. 입력 및 출력 코드가 정상적인가?"
 
   - id: 3
     chapter: "2차시: 조건문"
     title: "조건문1"
     description: "성적을 입력받고 50점 이상이면 pass, 미만이면 fail을 출력하는 프로그램"
     type: "code"
-    ai_prompt: "python 문법에 따라 학생들에게 친절히 설명해줘"
+    ai_prompt: "# 채점기준 1. 입력 코드가 정상적인가? 2. 조건이 정확하게 작성되었는가?"
 
   - id: 4
     chapter: "2차시: 조건문"
     title: "조건문2"
     description: "성적을 입력받고 100이면 perfect, 50점 이상이면 pass, 미만이면 fail을 출력하는 프로그램"
     type: "code"
-    ai_prompt: "python 문법에 따라 학생들에게 친절히 설명해줘"
+    ai_prompt: "# 채점기준 1. 입력 코드가 정상적인가? 2. 조건이 정확하게 작성되었는가?"
     
   - id: 5
     chapter: "3차시: 반복문"
     title: "for"
     description: "안녕하세요를 3번 출력하는 프로그램"
     type: "code"
-    ai_prompt: "python 문법에 따라 학생들에게 친절히 설명해줘"
+    ai_prompt: "#채점기준 1. 반복문과 그 횟수 및 출력이 정확하게 작성되었는가?"
 
 
 
